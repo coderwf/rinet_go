@@ -1,127 +1,111 @@
 package log
 
 import (
-	"fmt"
-	log "github.com/jeanphorn/log4go"
+	lg4 "github.com/alecthomas/log4go"
 )
 
-var rootLogger  = make(log.Logger)
+/*全局的logger,可配置*/
+var rootLogger = make(lg4.Logger)
 
-var (
-	Stdout  = "Stdout"
-	None    = "None"
+/*只需要用到四个日志级别即可*/
+const (
+	DEBUG    =  lg4.DEBUG
+	INFO     =  lg4.INFO
+	WARN     =  lg4.WARNING
+	ERROR    =  lg4.ERROR
 )
+
+const (
+	STDOUT   = "stdout"
+	NONE     = "none"
+)
+
+/*日志输出到何处,日志登记设置,如果不设置则使用lg4默认配置*/
+func LogTo(target string,level lg4.Level){
+
+	var writer  lg4.LogWriter  = nil
+
+	switch target {
+	case STDOUT:
+		//输出到屏幕
+		writer  = lg4.NewConsoleLogWriter()
+	case NONE :
+		//不配置日志
+	default:
+		writer  = lg4.NewFileLogWriter(target,true)
+	}//switch
+	if writer != nil{
+		rootLogger.AddFilter("log",level,writer)
+	}//if
+}
 
 type Logger interface {
-	AddLogPrefix(string)
-	ClearLogPrefixes()
-    Debug(string,...interface{})
-	Info(string,...interface{})
-	Warn(string,...interface{}) error
-	Error(string,...interface{}) error
+	AddPrefix(string)
+	ClearPrefixes()
+	Debug(arg0 string,args ...interface{})
+	Info(arg0 string,args ...interface{})
+	Warn(arg0 string,args ...interface{}) error
+	Error(arg0 string,args ...interface{}) error
 }
 
-//将日志记录到某处
-func LogTo(target string,levelName string){
-	var writer log.LogWriter = nil
-    switch target{
-	case Stdout:
-		writer = log.NewConsoleLogWriter()
-	case None :
-        //不采取操作
-	default :
-		writer = log.NewFileLogWriter(target,true,false)
-	}
-
-	//不是None
-	if writer != nil {
-
-	}//
-}
-
+/*带自定义前缀的logger*/
 type PrefixedLogger struct {
-	*log.Logger
-	prefix string
+	prefix        string
+	logger        *lg4.Logger // 封装lg4的logger
 }
 
-func NewPrefixLogger(prefixes ...string) *PrefixedLogger{
-	var logger = &PrefixedLogger{&rootLogger,""}
+func (pf *PrefixedLogger) AddPrefix(prefix string){
+    pf.prefix += "[" + prefix + "]"
+}
 
-	for _ , prefix := range prefixes{
-        logger.AddLogPrefix(prefix)
+func (pf *PrefixedLogger) ClearPrefixes(){
+	pf.prefix  = ""
+}
+
+func (pf *PrefixedLogger) pfx(fmtStr string) string{
+	return pf.prefix + " " + fmtStr
+}
+func (pf *PrefixedLogger) Debug(arg0 string,args ...interface{}){
+	pf.logger.Debug(pf.pfx(arg0),args...)
+}
+
+func (pf *PrefixedLogger) Info(arg0 string,args ...interface{}){
+	pf.logger.Info(pf.pfx(arg0),args...)
+}
+
+func (pf *PrefixedLogger) Warn(arg0 string,args ...interface{}) error{
+    return pf.logger.Warn(pf.pfx(arg0),args...)
+}
+
+func (pf *PrefixedLogger) Error(arg0 string,args ...interface{}) error{
+    return pf.logger.Error(pf.pfx(arg0),args...)
+}
+
+func NewPrefixedLogger(prefixes ...string) Logger{
+    logger := &PrefixedLogger{"",&rootLogger}
+    for _ , prefix := range prefixes{
+    	logger.AddPrefix(prefix)
 	}//for
 	return logger
-}
+}//
 
-func (pfl *PrefixedLogger) AddLogPrefix(prefix string){
-	if len(pfl.prefix) >0 {
-		pfl.prefix += "-"
-	}//
-	pfl.prefix += "[" +prefix + "]"
-}
-
-func (pfl *PrefixedLogger) ClearLogPrefixes(){
-	pfl.prefix  = ""
-}
-
-func (pfl *PrefixedLogger) pfx(fmtstr string) interface{}{
-	return fmt.Sprintf("%s %s",pfl.prefix,fmtstr)
-}
-
-func (pfl *PrefixedLogger) Debug(arg0 string,args ...interface{}){
-	pfl.Logger.Debug(pfl.pfx(arg0),args...)
-}
-
-func (pfl *PrefixedLogger) Error(arg0 string,args ...interface{}) error {
-	return pfl.Logger.Error(pfl.pfx(arg0),args...)
-}
-
-func (pfl *PrefixedLogger) Warn(arg0 string,args ...interface{}) error {
-	return pfl.Logger.Warn(pfl.pfx(arg0),args...)
-}
-
-func (pfl *PrefixedLogger) Info(arg0 string,args ...interface{}){
-	pfl.Logger.Info(pfl.pfx(arg0),args...)
-}
-
-func (pfl *PrefixedLogger) Trace(arg0 string,args ...interface{}){
-	pfl.Logger.Trace(pfl.pfx(arg0),args...)
-}
-
-func (pfl *PrefixedLogger) Critical(arg0 string,args ...interface{}) error{
-	return pfl.Logger.Critical(pfl.pfx(arg0),args...)
-}
-
-func (pfl *PrefixedLogger) Fine(arg0 string , args ...interface{}){
-	pfl.Logger.Fine(pfl.pfx(arg0),args...)
-}
-
-func (pfl *PrefixedLogger) Finest(arg0 string , args ...interface{}){
-	pfl.Logger.Finest(pfl.pfx(arg0),args...)
-}
-
-
-/*最简单的使用方式,正式代码中不要使用*/
-func Debug(arg0 string , args ...interface{}){
+/*不带prefix*/
+func Debug(arg0 string,args ...interface{}){
 	rootLogger.Debug(arg0,args...)
 }
 
-func Info(arg0 string , args ...interface{}){
-	rootLogger.Info(arg0 , args...)
+func Info(arg0 string,args ...interface{}){
+	rootLogger.Info(arg0,args...)
 }
 
-func Error(arg0 string ,args ...interface{}) error{
-	return rootLogger.Error(arg0,args...)
+func Warn(arg0 string,args ...interface{}) error{
+    return rootLogger.Warn(arg0,args...)
 }
 
-func Warn(arg0 string , args ...interface{}) error{
-	return rootLogger.Warn(arg0 , args...)
+func Error(arg0 string,args ...interface{}) error{
+    return rootLogger.Error(arg0,args...)
 }
 
-func Critical(arg0 string , args ...interface{}) error{
-	return rootLogger.Critical(arg0 , args...)
-}
-
-func Trace(arg0 string , args ...interface{}) {
-	rootLogger.Trace(arg0 , args...)
+func Close(){
+	rootLogger.Close()
 }
